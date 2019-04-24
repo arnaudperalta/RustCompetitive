@@ -47,10 +47,10 @@ namespace Oxide.Plugins {
         private const string DefaultUnready = "{0} is now unready.";
         private const string DefaultChoose = "Please choose a team before you get ready.";
         private const string DefaultRemaining = "{0} seconds remaining before the end of the preparation phase.";
-        private const string DefaultRedLower = "<color=#ed3434ff>red</color>:";
-        private const string DefaultBlueLower = "<color=#1340d6ff>blue</color>:";
-        private const string DefaultRedUpper = "<color=#ed3434ff>Red</color>:";
-        private const string DefaultBlueUpper = "<color=#1340d6ff>Blue</color>:";
+        private const string DefaultRedLower = "<color=#ed3434ff>red</color>";
+        private const string DefaultBlueLower = "<color=#1340d6ff>blue</color>";
+        private const string DefaultRedUpper = "<color=#ed3434ff>Red</color>";
+        private const string DefaultBlueUpper = "<color=#1340d6ff>Blue</color>";
 
         public string CurrentTimeLeft { get; private set; }
         public string CurrentTimeUp { get; private set; }
@@ -93,6 +93,7 @@ namespace Oxide.Plugins {
         public string CupBoardBlueString { get; private set; }
         
 
+        public List<string> UnreadyList { get; private set; }
         public List<string> RedTeam { get; private set; }
         public List<string> BlueTeam { get; private set; }
         public List<string> RedReady { get; private set; }
@@ -100,6 +101,9 @@ namespace Oxide.Plugins {
 
         public Timer TimeLeft;
         public Timer message;
+
+        int AlternativeMessage;
+
         public Random rnd;
 
         private void Loaded() => LoadConfigValues();
@@ -107,16 +111,29 @@ namespace Oxide.Plugins {
         private void OnServerInitialized()
         {
             // List initialization
+            UnreadyList = new List<string>();
             RedTeam = new List<string>();
             BlueTeam = new List<string>();
             RedReady = new List<string>();
             BlueReady = new List<string>();
 
             rnd = new Random();
+            AlternativeMessage = 0;
 
-            message = timer.Repeat(10, -1, () =>
+            message = timer.Repeat(15, -1, () =>
             {
-                BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, "Please pick a team with /join and get ready with /ready."));
+                ++AlternativeMessage;
+                if (AlternativeMessage % 2 == 0)
+                {
+                    BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, "Please pick a team with /join and get ready with /ready."));
+                }
+                else
+                {
+                    BasePlayer.activePlayerList.ForEach(x => AddToUnreadyList(x));
+                    BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, "Players unready : {0}", string.Join(",", UnreadyList)));
+                    UnreadyList.Clear();
+                }
+
             }
             );
         }
@@ -562,6 +579,14 @@ namespace Oxide.Plugins {
             else
             {
                 JoinBlue(player);
+            }
+        }
+
+        private void AddToUnreadyList(BasePlayer player)
+        {
+            if (!RedReady.Contains(player.displayName) && !BlueReady.Contains(player.displayName))
+            {
+                UnreadyList.Add(player.displayName);
             }
         }
 
