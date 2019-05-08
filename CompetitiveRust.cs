@@ -81,6 +81,8 @@ namespace Oxide.Plugins {
         private const string DefaultNotEnough = "Not enough player to do this.";
         private const string DefaultVoteKick = "{0} voted to kick {1} ({2}/{3}).";
         private const string DefaultVoteDone = "Vote successeful, player kicked.";
+        private const string DefaultPlayerLeft = "{0} players remaining.";
+        private const string DefaultGameProgress = "Game in progress.";
 
         public string CurrentTimeLeft { get; private set; }
         public string CurrentTimeUp { get; private set; }
@@ -116,6 +118,8 @@ namespace Oxide.Plugins {
         public string CurrentNotEnough { get; private set; }
         public string CurrentVoteKick { get; private set; }
         public string CurrentVoteDone { get; private set; }
+        public string CurrentPlayerLeft { get; private set; }
+        public string CurrentGameProgress { get; private set; }
 
         #endregion
 
@@ -143,14 +147,16 @@ namespace Oxide.Plugins {
 
         public Dictionary<string, List<string>> VoteKickDcty { get; private set; }
 
-        public Timer TimeLeft;
-        public Timer message;
-        public Timer TimeCheck;
+        private Timer TimeLeft;
+        private Timer message;
+        private Timer TimeCheck;
 
         private int AlternativeMessage;
         private bool INIT = false;
 
-        public Random rnd;
+        private Random rnd;
+        private Covalence coval = new Covalence();
+        private string DefaultHostName = ConVar.Server.hostname;
 
         private void Loaded()
         {
@@ -218,6 +224,8 @@ namespace Oxide.Plugins {
             CurrentNotEnough = GetConfigValue("Messages", "CurrentNotEnough", DefaultNotEnough);
             CurrentVoteKick = GetConfigValue("Messages", "CurrentVoteKick", DefaultVoteKick);
             CurrentVoteDone = GetConfigValue("Messages", "CurrentVoteDone", DefaultVoteDone);
+            CurrentPlayerLeft = GetConfigValue("Messages", "CurrentPlayerLeft", DefaultPlayerLeft);
+            CurrentGameProgress = GetConfigValue("Messages", "CurrentGameProgress", DefaultGameProgress);
         
             if (!configChanged){ return;}
             Puts("Configuration file updated.");
@@ -226,7 +234,7 @@ namespace Oxide.Plugins {
 
         #endregion
 
-        #region Chat/Console command.
+        #region Chat/Console command
 
         [ChatCommand("votekick")]
         private void VoteKickCommandChat(BasePlayer player, string command, string[] args)
@@ -242,7 +250,6 @@ namespace Oxide.Plugins {
                 SendChatMessage(player, "No target.");
                 return;
             }
-            Covalence coval = new Covalence();
             IPlayer target = coval.Players.FindPlayer(args[0]);
             if (target == null || !target.IsConnected)
             {
@@ -476,9 +483,18 @@ namespace Oxide.Plugins {
                     TOD_Sky.Instance.Cycle.Hour = 12;
                 });
             }
-            if ()
             LoadCraftTime();
             INIT = true;
+        }
+
+        private void OnPlayerConnected()
+        {
+            RefreshServerName();
+        }
+
+        private void OnPlayerDisconnected()
+        {
+            RefreshServerName();
         }
 
         private object OnLootSpawn(LootContainer container)
@@ -702,6 +718,23 @@ namespace Oxide.Plugins {
         #endregion
 
         #region Helper methods
+
+        private void RefreshServerName()
+        {
+            if (GameStarted)
+            {
+                covalence.Server.Command("server.hostname "
+                + '"' + DefaultHostName
+                + ' '
+                + CurrentGameProgress + '"');
+                return;
+            }
+            int slotRemaining = ConVar.Server.maxplayers - BasePlayer.activePlayerList.Count;
+            covalence.Server.Command("server.hostname " 
+                + '"' + DefaultHostName 
+                + ' ' 
+                + String.Format(CurrentPlayerLeft, slotRemaining) + '"');
+        }
 
         private void LoadCraftTime()
         {
