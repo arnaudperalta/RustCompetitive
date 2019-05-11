@@ -3,10 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using Oxide.Core.Libraries.Covalence;
 
+// TODO server name loading
+
 // TODEBUG
 // votekick, decay
 namespace Oxide.Plugins {
-    [Info("CompetitiveRust", "br0wnard", "0.3")]
+    [Info("CompetitiveRust", "br0wnard", "0.4")]
     [Description("Setup configuration and rules for competitive play in Rust.")]
     public class CompetitiveRust : RustPlugin {
 
@@ -24,10 +26,12 @@ namespace Oxide.Plugins {
         // Plugin options
         private const int DefaultTeamSize = 5;
         private const int DefaultPreparationTime = 600;
-        private const int DefaultDecayRate = 20;
+        private const int DefaultDecayTickRate = 1;
+        private const int DefaultConsumeRate = 20;
         private const int DefaultGatherRate = 6;
-        private const int DefaultCraftRate = 3;
-        private const int DefaultScrapRate = 2;
+        private const int DefaultPickupRate = 3;
+        private const int DefaultCraftRate = 6;
+        private const int DefaultScrapRate = 3;
         private const int DefaultBlueHoodie = 887162672;
         private const int DefaultRedHoodie = 887173152;
         private const bool DefaultOnlyDay = true;
@@ -36,8 +40,10 @@ namespace Oxide.Plugins {
 
         public int TeamSize { get; private set; }
         public int PreparationTime { get; private set; }
-        public int DecayRate { get; private set; }
+        public int DecayTickRate { get; private set; }
+        public int ConsumeRate { get; private set; }
         public int GatherRate { get; private set; }
+        public int PickupRate { get; private set; }
         public int CraftRate { get; private set; }
         public int ScrapRate { get; private set; }
         public int BlueHoodie { get; private set; }
@@ -83,6 +89,8 @@ namespace Oxide.Plugins {
         private const string DefaultVoteDone = "Vote successeful, player kicked.";
         private const string DefaultPlayerLeft = "{0} players remaining.";
         private const string DefaultGameProgress = "Game in progress.";
+        private const string DefaultConnected = "{0} joined the game.";
+        private const string DefaultDisconnected = "{0} left the game.";
 
         public string CurrentTimeLeft { get; private set; }
         public string CurrentTimeUp { get; private set; }
@@ -120,10 +128,12 @@ namespace Oxide.Plugins {
         public string CurrentVoteDone { get; private set; }
         public string CurrentPlayerLeft { get; private set; }
         public string CurrentGameProgress { get; private set; }
+        public string CurrentConnected { get; private set; }
+        public string CurrentDisconnected { get; private set; }
 
         #endregion
 
-        #region Variables and Server ini
+        #region Variables
 
         private bool DefaultPreparationUp = false;
         private bool DefaultGameStarted = false;
@@ -131,7 +141,7 @@ namespace Oxide.Plugins {
         private bool DefaultCupBoardBlue = false;
         private string DefaultCupBoardRedString = "";
         private string DefaultCupBoardBlueString = "";
-        
+
         public bool PreparationUp { get; private set; }
         public bool GameStarted { get; private set; }
         public bool CupBoardRed { get; private set; }
@@ -153,20 +163,17 @@ namespace Oxide.Plugins {
 
         private int AlternativeMessage;
         private bool INIT = false;
-
         private Random rnd;
         private Covalence coval = new Covalence();
-        private string DefaultHostName = ConVar.Server.hostname;
+        private string DefaultHostName;
 
-        private void Loaded()
-        {
-            LoadConfigValues();
-        }
+        #endregion
 
-        private void Unload()
-        {
-            UnloadCraftTime();
-        }
+        #region Server Loading
+
+        private void Loaded() => LoadConfigValues();
+
+        private void Unload() => UnloadCraftTime();
 
         protected override void LoadDefaultConfig() => PrintWarning("Configuration file has been created.");
 
@@ -179,8 +186,10 @@ namespace Oxide.Plugins {
             // Plugin options
             TeamSize = GetConfigValue("Options", "TeamSize", DefaultTeamSize);
             PreparationTime = GetConfigValue("Options", "PreparationTime", DefaultPreparationTime);
-            DecayRate = GetConfigValue("Options", "DecayRate", DefaultDecayRate);
+            DecayTickRate = GetConfigValue("Options", "DecayTickRate", DefaultDecayTickRate);
+            ConsumeRate = GetConfigValue("Options", "ConsumeRate", DefaultConsumeRate);
             GatherRate = GetConfigValue("Options", "GatherRate", DefaultGatherRate);
+            PickupRate = GetConfigValue("Options", "PickupRate", DefaultPickupRate);
             CraftRate = GetConfigValue("Options", "CraftRate", DefaultCraftRate);
             ScrapRate = GetConfigValue("Options", "ScrapRate", DefaultScrapRate);
             BlueHoodie = GetConfigValue("Options", "BlueHoodie", DefaultBlueHoodie);
@@ -226,6 +235,8 @@ namespace Oxide.Plugins {
             CurrentVoteDone = GetConfigValue("Messages", "CurrentVoteDone", DefaultVoteDone);
             CurrentPlayerLeft = GetConfigValue("Messages", "CurrentPlayerLeft", DefaultPlayerLeft);
             CurrentGameProgress = GetConfigValue("Messages", "CurrentGameProgress", DefaultGameProgress);
+            CurrentConnected = GetConfigValue("Messages", "CurrentConnected", DefaultConnected);
+            CurrentDisconnected = GetConfigValue("Messages", "CurrentDisconnected", DefaultDisconnected);
         
             if (!configChanged){ return;}
             Puts("Configuration file updated.");
@@ -312,12 +323,6 @@ namespace Oxide.Plugins {
                     ClearGame();
                 }
             }
-        }
-
-        [ChatCommand("timeleft")]
-        private void TimeCommandChat(BasePlayer player, string command, string[] args)
-        {
-            SendChatMessage(player, CurrentTimeLeft, PreparationTime);
         }
 
         [ChatCommand("start")]
@@ -438,6 +443,21 @@ namespace Oxide.Plugins {
             BasePlayer.activePlayerList.ForEach(x => JoinRand(x));
         }
 
+        [ChatCommand("help")]
+        private void HelpCommandChat(BasePlayer player, string command, string[] args)
+        {
+            SendChatMessage(player, "Rules:");
+            SendChatMessage(player, "Two teams, red or blue, you need to destroy the ennemy TC.");
+            SendChatMessage(player, "A preparation phase of " + PreparationTime + "seconds without PvP.");
+            SendChatMessage(player, "During this phase you need to place your team cupboard.");
+            SendChatMessage(player, "Commands: \n");
+            SendChatMessage(player, "/votekick <player name> for votekick a player.");
+            SendChatMessage(player, "/gg to surrend.");
+            SendChatMessage(player, "/join to join a team before the game start.");
+            SendChatMessage(player, "/ready to get ready before the game start.");
+            SendChatMessage(player, "/unready to get unready before the game start.");
+        }
+
         #endregion
 
         #region ServerHook
@@ -458,23 +478,26 @@ namespace Oxide.Plugins {
 
             message = timer.Repeat(15, -1, () =>
             {
-                ++AlternativeMessage;
-                if (AlternativeMessage % 2 == 0)
+                if (!GameStarted)
                 {
-                    BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, "Please pick a team with /join and get ready with /ready."));
-                }
-                else
-                {
-                    BasePlayer.activePlayerList.ForEach(x => {
-                        if (!RedReady.Contains(x.userID) && !BlueReady.Contains(x.userID))
+                    ++AlternativeMessage;
+                    if (AlternativeMessage % 2 == 0)
+                    {
+                        BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, "Please pick a team with /join and get ready with /ready."));
+                    }
+                    else
+                    {
+                        BasePlayer.activePlayerList.ForEach(x =>
                         {
-                            UnreadyList.Add(x.displayName);
-                        }
-                    });
-                    BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, "Players unready : {0}", string.Join(",", UnreadyList)));
-                    UnreadyList.Clear();
+                            if (!RedReady.Contains(x.userID) && !BlueReady.Contains(x.userID))
+                            {
+                                UnreadyList.Add(x.displayName);
+                            }
+                        });
+                        BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, "Players unready : {0}", string.Join(",", UnreadyList)));
+                        UnreadyList.Clear();
+                    }
                 }
-
             });
             if (OnlyDay)
             {
@@ -484,17 +507,21 @@ namespace Oxide.Plugins {
                 });
             }
             LoadCraftTime();
+            DefaultHostName = ConVar.Server.hostname;
+            int Consume = 1440 / ConsumeRate;
+            covalence.Server.Command("decay.upkeep_period_minutes " + Consume);
+            covalence.Server.Command("decay.scale " + ConsumeRate);
+            covalence.Server.Command("decay.tick " + DecayTickRate);
+            RefreshServerName();
             INIT = true;
         }
 
-        private void OnPlayerConnected()
+        private void OnPlayerDisconnected(BasePlayer player, string reason)
         {
-            RefreshServerName();
-        }
-
-        private void OnPlayerDisconnected()
-        {
-            RefreshServerName();
+            timer.Once(5, () => {
+                RefreshServerName();
+            });
+            NotifyPlayerConnection(false, player.displayName);
         }
 
         private object OnLootSpawn(LootContainer container)
@@ -569,6 +596,7 @@ namespace Oxide.Plugins {
                 if (info == null || entity == null) { return; }
                 if (entity is BaseNpc) { return; }
                 BasePlayer victim = entity.ToPlayer();
+                if (info?.Initiator?.ToPlayer() == null) { return; }
                 BasePlayer killer = info.Initiator.ToPlayer();
                 if (victim == null || killer == null) { return; }
                 if (BlueTeam.Contains(killer.userID))
@@ -607,22 +635,15 @@ namespace Oxide.Plugins {
         private void OnEntityTakeDamage(BaseEntity entity, HitInfo info)
         {
             if (!GameStarted) { return; }
-            if (info.damageTypes.Has(Rust.DamageType.Decay))
-            {
-                info.damageTypes.Scale(Rust.DamageType.Decay, DecayRate);
-                return;
-            }
-            else
-            {
-                if (PreparationUp && GameStarted) { return; }
-                if (entity == null || info == null) { return; }
-                BasePlayer target = entity as BasePlayer;
-                if (info.Initiator == null) { return; }
-                BasePlayer from = info.Initiator as BasePlayer;
-                if (target == null || from == null) { return; }
-                if (target.UserIDString == from.UserIDString) { return; }
-                info.damageTypes.ScaleAll(0);
-            }
+            // rate decay
+            if (PreparationUp && GameStarted) { return; }
+            if (entity == null || info == null) { return; }
+            BasePlayer target = entity as BasePlayer;
+            if (info.Initiator == null) { return; }
+            BasePlayer from = info.Initiator as BasePlayer;
+            if (target == null || from == null) { return; }
+            if (target.UserIDString == from.UserIDString) { return; }
+            info.damageTypes.ScaleAll(0);
         }
 
         private void OnEntityKill(BaseNetworkable entity)
@@ -710,6 +731,15 @@ namespace Oxide.Plugins {
 
         private void OnPlayerInit(BasePlayer player)
         {
+            if (GameStarted)
+            {
+                if (!BlueTeam.Contains(player.userID) || !RedTeam.Contains(player.userID))
+                {
+                    player.Kick("Game started. Please connect when the servername is updated.");
+                }
+            }
+            NotifyPlayerConnection(true, player.displayName);
+            RefreshServerName();
             if (UnlockedBP) {
                 UnlockBP(player);
             }
@@ -718,6 +748,17 @@ namespace Oxide.Plugins {
         #endregion
 
         #region Helper methods
+
+        private void NotifyPlayerConnection(bool type, string playerName)
+        {
+            if (type)
+            {
+                BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentConnected, playerName));
+            } else
+            {
+                BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentDisconnected, playerName));
+            }
+        }
 
         private void RefreshServerName()
         {
@@ -768,20 +809,17 @@ namespace Oxide.Plugins {
 
         private void ClearGame()
         {
-            PreparationTime = DefaultPreparationTime;
             PreparationUp = DefaultPreparationUp;
             GameStarted = DefaultGameStarted;
             CupBoardRed = DefaultCupBoardRed;
             CupBoardBlue = DefaultCupBoardBlue;
             CupBoardRedString = DefaultCupBoardRedString;
             CupBoardBlueString = DefaultCupBoardBlueString;
-            BlueHoodie = DefaultBlueHoodie;
-            RedHoodie = DefaultRedHoodie;
             RedTeam.Clear();
             BlueTeam.Clear();
             RedReady.Clear();
             BlueReady.Clear();
-            OnServerInitialized();
+            RefreshServerName();
         }
 
         private void SendChatMessage(BasePlayer player, string message, params object[] args) 
@@ -821,6 +859,13 @@ namespace Oxide.Plugins {
 
         private void RemoveAll()
         {
+            var allVehicules = UnityEngine.GameObject.FindObjectsOfType<BaseVehicle>();
+            for (int i = 0; i < allVehicules.Count(); i++)
+            {
+                var vehicules = allVehicules[i];
+                if (vehicules == null) continue;
+                vehicules.Kill(BaseNetworkable.DestroyMode.None);
+            }
             var allDropped = UnityEngine.GameObject.FindObjectsOfType<DroppedItem>();
             for (int i = 0; i < allDropped.Count(); i++)
             {
@@ -855,9 +900,12 @@ namespace Oxide.Plugins {
         {
             GameStarted = true;
             timer.Destroy(ref message);
-            Timer killCountdown = timer.Once(5, () =>
+            Timer killCountdown = timer.Once(2, () =>
             {
-                if (GameStarted) { BasePlayer.activePlayerList.ForEach(x => x.Hurt(1000)); }
+                if (GameStarted) {
+                    BasePlayer.activePlayerList.ForEach(x => x.Hurt(1000));
+                    BasePlayer.sleepingPlayerList.ForEach(x => x.Kill(BaseNetworkable.DestroyMode.None));
+                }
                 RemoveAll();
             }
             );
@@ -899,6 +947,7 @@ namespace Oxide.Plugins {
             }
             );
             BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentGameStart, PreparationTime));
+            RefreshServerName();
         }
 
         private void JoinRed(BasePlayer player)
