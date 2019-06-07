@@ -3,12 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Oxide.Core.Libraries.Covalence;
 
-// TODO server name loading
-
-// TODEBUG
-// votekick, decay
 namespace Oxide.Plugins {
-    [Info("CompetitiveRust", "br0wnard", "0.4")]
+    [Info("CompetitiveRust", "br0wnard", "0.5")]
     [Description("Setup configuration and rules for competitive play in Rust.")]
     public class CompetitiveRust : RustPlugin {
 
@@ -24,14 +20,14 @@ namespace Oxide.Plugins {
         public string ChatPrefixColor { get; private set; }
 
         // Plugin options
-        private const int DefaultTeamSize = 5;
+        private const int DefaultTeamSize = 2;
         private const int DefaultPreparationTime = 600;
         private const int DefaultDecayTickRate = 1;
-        private const int DefaultConsumeRate = 20;
+        private const int DefaultConsumeRate = 5;
         private const int DefaultGatherRate = 6;
-        private const int DefaultPickupRate = 3;
+        private const int DefaultPickupRate = 6;
         private const int DefaultCraftRate = 6;
-        private const int DefaultScrapRate = 3;
+        private const int DefaultScrapRate = 6;
         private const int DefaultBlueHoodie = 887162672;
         private const int DefaultRedHoodie = 887173152;
         private const bool DefaultOnlyDay = true;
@@ -154,6 +150,8 @@ namespace Oxide.Plugins {
         public List<ulong> BlueTeam { get; private set; }
         public List<ulong> RedReady { get; private set; }
         public List<ulong> BlueReady { get; private set; }
+        public RelationshipManager.PlayerTeam RedParty { get; private set; }
+        public RelationshipManager.PlayerTeam BlueParty { get; private set; }
 
         public Dictionary<string, List<string>> VoteKickDcty { get; private set; }
 
@@ -470,6 +468,8 @@ namespace Oxide.Plugins {
             BlueTeam = new List<ulong>();
             RedReady = new List<ulong>();
             BlueReady = new List<ulong>();
+            RedParty = RelationshipManager.Instance.CreateTeam();
+            BlueParty = RelationshipManager.Instance.CreateTeam();
 
             VoteKickDcty = new Dictionary<string, List<string>>();
 
@@ -538,7 +538,10 @@ namespace Oxide.Plugins {
                 container.PopulateLoot();
                 foreach (Item i in container.inventory.itemList)
                 {
-                    if (i.amount > 2)
+                    if (i.IsBlueprint())
+                    {
+                        i.amount = 0;
+                    } else if (!i.hasCondition)
                     {
                         i.amount *= ScrapRate;
                     }
@@ -551,10 +554,11 @@ namespace Oxide.Plugins {
         private void OnDispenserGather(ResourceDispenser dispenser, BaseEntity entity, Item item)
         {
             if (!entity.ToPlayer()) { return; }
+            var amount = item.amount;
             item.amount = item.amount * GatherRate;
             try
             {
-                dispenser.containedItems.Single(x => x.itemid == item.info.itemid).amount += item.amount - item.amount / GatherRate;
+                dispenser.containedItems.Single(x => x.itemid == item.info.itemid).amount += amount - item.amount / GatherRate;
 
                 if (dispenser.containedItems.Single(x => x.itemid == item.info.itemid).amount < 0)
                 {
@@ -581,7 +585,7 @@ namespace Oxide.Plugins {
 
         private void OnCollectiblePickup(Item item, BasePlayer player)
         {
-            item.amount = (int)(item.amount * GatherRate);
+            item.amount = (int)(item.amount * PickupRate);
         }
 
         private void OnSurveyGather(SurveyCharge surveyCharge, Item item)
@@ -635,14 +639,13 @@ namespace Oxide.Plugins {
         private void OnEntityTakeDamage(BaseEntity entity, HitInfo info)
         {
             if (!GameStarted) { return; }
-            // rate decay
             if (PreparationUp && GameStarted) { return; }
             if (entity == null || info == null) { return; }
             BasePlayer target = entity as BasePlayer;
             if (info.Initiator == null) { return; }
             BasePlayer from = info.Initiator as BasePlayer;
             if (target == null || from == null) { return; }
-            if (target.UserIDString == from.UserIDString) { return; }
+            if (target.UserIDString == from.UserIDString || target.IsNpc) { return; }
             info.damageTypes.ScaleAll(0);
         }
 
@@ -731,7 +734,7 @@ namespace Oxide.Plugins {
 
         private void OnPlayerInit(BasePlayer player)
         {
-            if (GameStarted)
+            if (GameStarted && !player.IsAdmin)
             {
                 if (!BlueTeam.Contains(player.userID) || !RedTeam.Contains(player.userID))
                 {
@@ -770,7 +773,8 @@ namespace Oxide.Plugins {
                 + CurrentGameProgress + '"');
                 return;
             }
-            int slotRemaining = ConVar.Server.maxplayers - BasePlayer.activePlayerList.Count;
+            int slotRemaining = (TeamSize * 2) - BasePlayer.activePlayerList.Count;
+            if (slotRemaining < 0) { slotRemaining = 0; }
             covalence.Server.Command("server.hostname " 
                 + '"' + DefaultHostName 
                 + ' ' 
@@ -904,7 +908,7 @@ namespace Oxide.Plugins {
             {
                 if (GameStarted) {
                     BasePlayer.activePlayerList.ForEach(x => x.Hurt(1000));
-                    BasePlayer.sleepingPlayerList.ForEach(x => x.Kill(BaseNetworkable.DestroyMode.None));
+                    // debug plz BasePlayer.sleepingPlayerList.ForEach(x => x.Kill(BaseNetworkable.DestroyMode.None));
                 }
                 RemoveAll();
             }
@@ -957,17 +961,16 @@ namespace Oxide.Plugins {
                 SendChatMessage(player, CurrentTeamFull);
                 return;
             }
-            if (!RedTeam.Contains(player.userID))
-            {
-                RedTeam.Add(player.userID);
-            }
             if (BlueTeam.Contains(player.userID))
             {
                 BlueTeam.Remove(player.userID);
-            }
-            if (BlueReady.Contains(player.userID))
-            {
                 BlueReady.Remove(player.userID);
+                BlueParty.RemovePlayer(player.userID);
+            }
+            if (!RedTeam.Contains(player.userID))
+            {
+                RedTeam.Add(player.userID);
+                RedParty.AddPlayer(player);
             }
             BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentNow, player.displayName, CurrentRedLower));
         }
@@ -979,17 +982,16 @@ namespace Oxide.Plugins {
                 SendChatMessage(player, CurrentTeamFull);
                 return;
             }
-            if (!BlueTeam.Contains(player.userID))
-            {
-                BlueTeam.Add(player.userID);
-            }
             if (RedTeam.Contains(player.userID))
             {
                 RedTeam.Remove(player.userID);
-            }
-            if (RedReady.Contains(player.userID))
-            {
                 RedReady.Remove(player.userID);
+                RedParty.RemovePlayer(player.userID);
+            }
+            if (!BlueTeam.Contains(player.userID))
+            {
+                BlueTeam.Add(player.userID);
+                BlueParty.AddPlayer(player);
             }
             BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentNow, player.displayName, CurrentBlueLower));
         }
