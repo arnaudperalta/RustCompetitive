@@ -4,7 +4,7 @@ using System.Linq;
 using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins {
-    [Info("CompetitiveRust", "br0wnard", "0.5")]
+    [Info("CompetitiveRust", "br0wnard", "0.5.1")]
     [Description("Setup configuration and rules for competitive play in Rust.")]
     public class CompetitiveRust : RustPlugin {
 
@@ -297,11 +297,17 @@ namespace Oxide.Plugins {
             if (voteList.Count >= playerCount * 0.6f)
             {
                 target.Kick("Vote kicked.");
-                BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentVoteDone));
+								foreach (BasePlayer x in BasePlayer.activePlayerList)
+								{
+										SendChatMessage(x, CurrentVoteDone);
+								}
             }
             else
             {
-                BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentVoteKick, player.displayName, target.Id, voteList.Count, playerCount * 0.6f));
+								foreach (BasePlayer x in BasePlayer.activePlayerList)
+								{
+										SendChatMessage(x, CurrentVoteKick, player.displayName, target.Id, voteList.Count, playerCount * 0.6f);
+								}
             }
         }
 
@@ -312,12 +318,18 @@ namespace Oxide.Plugins {
             {
                 if (RedTeam.Contains(player.userID))
                 {
-                    BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentSurrend, CurrentRedUpper, CurrentBlueUpper));
+									foreach (BasePlayer x in BasePlayer.activePlayerList)
+									{
+											SendChatMessage(x, CurrentSurrend, CurrentRedUpper, CurrentBlueUpper);
+									}
                     ClearGame();
                 }
                 else if (BlueTeam.Contains(player.userID))
                 {
-                    BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentSurrend, CurrentBlueUpper, CurrentRedUpper));
+										foreach (BasePlayer x in BasePlayer.activePlayerList)
+										{
+												SendChatMessage(x, CurrentSurrend, CurrentBlueUpper, CurrentRedUpper);
+										}
                     ClearGame();
                 }
             }
@@ -385,7 +397,10 @@ namespace Oxide.Plugins {
             }
             GameStarted = false;
             ClearGame();
-            BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentStop));
+						foreach (BasePlayer x in BasePlayer.activePlayerList)
+						{
+								SendChatMessage(x, CurrentStop);
+						}
             return;
         }
 
@@ -396,12 +411,18 @@ namespace Oxide.Plugins {
             if (RedTeam.Contains(player.userID) && !RedReady.Contains(player.userID))
             {
                 RedReady.Add(player.userID);
-                BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentReady, player.displayName));
+								foreach (BasePlayer x in BasePlayer.activePlayerList)
+								{
+										SendChatMessage(x, CurrentReady, player.displayName);
+								}
             }
             else if (BlueTeam.Contains(player.userID) && !BlueReady.Contains(player.userID))
             {
                 BlueReady.Add(player.userID);
-                BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentReady, player.displayName));
+								foreach (BasePlayer x in BasePlayer.activePlayerList)
+								{
+										SendChatMessage(x, CurrentReady, player.displayName);
+								}
             }
             else if (!RedTeam.Contains(player.userID) && !BlueReady.Contains(player.userID))
             {
@@ -420,12 +441,18 @@ namespace Oxide.Plugins {
             if (RedReady.Contains(player.userID))
             {
                 RedReady.Remove(player.userID);
-                BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentUnready, player.displayName));
+								foreach (BasePlayer x in BasePlayer.activePlayerList)
+								{
+										SendChatMessage(x, CurrentUnready, player.displayName);
+								}
             }
             else if (BlueReady.Contains(player.userID))
             {
                 BlueReady.Remove(player.userID);
-                BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentUnready, player.displayName));
+								foreach (BasePlayer x in BasePlayer.activePlayerList)
+								{
+										SendChatMessage(x, CurrentUnready, player.displayName);
+								}
             }
         }
 
@@ -438,7 +465,10 @@ namespace Oxide.Plugins {
                 SendChatMessage(player, CurrentNoPermission);
                 return;
             }
-            BasePlayer.activePlayerList.ForEach(x => JoinRand(x));
+						foreach (BasePlayer x in BasePlayer.activePlayerList)
+						{
+								JoinRand(x);
+						}
         }
 
         [ChatCommand("help")]
@@ -483,18 +513,24 @@ namespace Oxide.Plugins {
                     ++AlternativeMessage;
                     if (AlternativeMessage % 2 == 0)
                     {
-                        BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, "Please pick a team with /join and get ready with /ready."));
+												foreach (BasePlayer x in BasePlayer.activePlayerList)
+												{
+														SendChatMessage(x, "Please pick a team with /join and get ready with /ready.");
+												}
                     }
                     else
                     {
-                        BasePlayer.activePlayerList.ForEach(x =>
-                        {
-                            if (!RedReady.Contains(x.userID) && !BlueReady.Contains(x.userID))
+												foreach (BasePlayer x in BasePlayer.activePlayerList)
+												{
+														if (!RedReady.Contains(x.userID) && !BlueReady.Contains(x.userID))
                             {
                                 UnreadyList.Add(x.displayName);
                             }
-                        });
-                        BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, "Players unready : {0}", string.Join(",", UnreadyList)));
+												}
+												foreach (BasePlayer x in BasePlayer.activePlayerList)
+												{
+														SendChatMessage(x, "Players unready : {0}", string.Join(",", UnreadyList));
+												}
                         UnreadyList.Clear();
                     }
                 }
@@ -573,7 +609,7 @@ namespace Oxide.Plugins {
             OnDispenserGather(dispenser, entity, item);
         }
 
-        private void OnCropGather(PlantEntity plant, Item item)
+        private void OnGrowableGather(GrowableEntity plant, Item item)
         {
             item.amount = (int)(item.amount * GatherRate);
         }
@@ -605,11 +641,17 @@ namespace Oxide.Plugins {
                 if (victim == null || killer == null) { return; }
                 if (BlueTeam.Contains(killer.userID))
                 {
-                    BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentKill, String.Format(CurrentBlue, killer.displayName), String.Format(CurrentRed, victim.displayName)));
+										foreach (BasePlayer x in BasePlayer.activePlayerList)
+										{
+												SendChatMessage(x, CurrentKill, String.Format(CurrentBlue, killer.displayName), String.Format(CurrentRed, victim.displayName));
+										}
                 }
                 else if (RedTeam.Contains(killer.userID))
                 {
-                    BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentKill, String.Format(CurrentRed, killer.displayName), String.Format(CurrentBlue, victim.displayName)));
+										foreach (BasePlayer x in BasePlayer.activePlayerList)
+										{
+												SendChatMessage(x, CurrentKill, String.Format(CurrentRed, killer.displayName), String.Format(CurrentBlue, victim.displayName));
+										}
                 }
             }
         }
@@ -655,13 +697,19 @@ namespace Oxide.Plugins {
             {
                 if (entity.ToString() == CupBoardRedString)
                 {
-                    BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentWin, CurrentRedUpper, CurrentBlueUpper));
+										foreach (BasePlayer x in BasePlayer.activePlayerList)
+										{
+												SendChatMessage(x, CurrentWin, CurrentRedUpper, CurrentBlueUpper);
+										}
                     ClearGame();
                     return;
                 }
                 if (entity.ToString() == CupBoardBlueString)
                 {
-                    BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentWin, CurrentBlueUpper, CurrentRedUpper));
+										foreach (BasePlayer x in BasePlayer.activePlayerList)
+										{
+												SendChatMessage(x, CurrentWin, CurrentBlueUpper, CurrentRedUpper);
+										}
                     ClearGame();
                     return;
                 }
@@ -756,10 +804,16 @@ namespace Oxide.Plugins {
         {
             if (type)
             {
-                BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentConnected, playerName));
+								foreach (BasePlayer x in BasePlayer.activePlayerList)
+								{
+										SendChatMessage(x, CurrentConnected, playerName);
+								}
             } else
             {
-                BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentDisconnected, playerName));
+								foreach (BasePlayer x in BasePlayer.activePlayerList)
+								{
+										SendChatMessage(x, CurrentDisconnected, playerName);
+								}
             }
         }
 
@@ -827,7 +881,7 @@ namespace Oxide.Plugins {
         }
 
         private void SendChatMessage(BasePlayer player, string message, params object[] args) 
-            => player?.SendConsoleCommand("chat.add", -1, string.Format($"<color={ChatPrefixColor}>{ChatPrefix}</color>: {message}", args), 1.0);
+            => player?.SendConsoleCommand("chat.add", -1, null, string.Format($"<color={ChatPrefixColor}>{ChatPrefix}</color>: {message}", args), 1.0);
 
         T GetConfigValue<T>(string category, string setting, T defaultValue)
         {
@@ -907,7 +961,10 @@ namespace Oxide.Plugins {
             Timer killCountdown = timer.Once(2, () =>
             {
                 if (GameStarted) {
-                    BasePlayer.activePlayerList.ForEach(x => x.Hurt(1000));
+										foreach (BasePlayer x in BasePlayer.activePlayerList)
+										{
+												x.Hurt(1000);
+										}
                     // debug plz BasePlayer.sleepingPlayerList.ForEach(x => x.Kill(BaseNetworkable.DestroyMode.None));
                 }
                 RemoveAll();
@@ -917,40 +974,64 @@ namespace Oxide.Plugins {
             {
                 if (!GameStarted) { return; }
                 PreparationUp = true;
-                BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentTimeUp));
+								foreach (BasePlayer x in BasePlayer.activePlayerList)
+								{
+										SendChatMessage(x, CurrentTimeUp);
+								}
                 if (!CupBoardBlue && !CupBoardRed)
                 {
-                    BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentDraw));
+										foreach (BasePlayer x in BasePlayer.activePlayerList)
+										{
+												SendChatMessage(x, CurrentDraw);
+										}
                     ClearGame();
                 }
                 else if (!CupBoardBlue)
                 {
-                    BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentNoTC, CurrentBlueUpper, CurrentRedLower));
+										foreach (BasePlayer x in BasePlayer.activePlayerList)
+										{
+												SendChatMessage(x, CurrentNoTC, CurrentBlueUpper, CurrentRedLower);
+										}
                     ClearGame();
                 }
                 else if (!CupBoardRed)
                 {
-                    BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentNoTC, CurrentRedUpper, CurrentBlueLower));
+										foreach (BasePlayer x in BasePlayer.activePlayerList)
+										{
+												SendChatMessage(x, CurrentNoTC, CurrentRedUpper, CurrentBlueLower);
+										}
                     ClearGame();
                 }
             }
             );
             Timer before60 = timer.Once(PreparationTime - 60, () =>
             {
-                BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentRemaining, "60"));
+								foreach (BasePlayer x in BasePlayer.activePlayerList)
+								{
+										SendChatMessage(x, CurrentRemaining, "60");
+								}
             }
             );
             Timer before30 = timer.Once(PreparationTime - 30, () =>
             {
-                BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentRemaining, "30"));
+								foreach (BasePlayer x in BasePlayer.activePlayerList)
+								{
+										SendChatMessage(x, CurrentRemaining, "30");
+								}
             }
             );
             Timer before15 = timer.Once(PreparationTime - 15, () =>
             {
-                BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentRemaining, "15"));
+								foreach (BasePlayer x in BasePlayer.activePlayerList)
+								{
+										SendChatMessage(x, CurrentRemaining, "15");
+								}
             }
             );
-            BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentGameStart, PreparationTime));
+						foreach (BasePlayer x in BasePlayer.activePlayerList)
+						{
+								SendChatMessage(x, CurrentGameStart, PreparationTime);
+						}
             RefreshServerName();
         }
 
@@ -972,7 +1053,10 @@ namespace Oxide.Plugins {
                 RedTeam.Add(player.userID);
                 RedParty.AddPlayer(player);
             }
-            BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentNow, player.displayName, CurrentRedLower));
+						foreach (BasePlayer x in BasePlayer.activePlayerList)
+						{
+								SendChatMessage(x, CurrentNow, player.displayName, CurrentRedLower);
+						}
         }
 
         private void JoinBlue(BasePlayer player)
@@ -993,7 +1077,10 @@ namespace Oxide.Plugins {
                 BlueTeam.Add(player.userID);
                 BlueParty.AddPlayer(player);
             }
-            BasePlayer.activePlayerList.ForEach(x => SendChatMessage(x, CurrentNow, player.displayName, CurrentBlueLower));
+						foreach (BasePlayer x in BasePlayer.activePlayerList)
+						{
+								SendChatMessage(x, CurrentNow, player.displayName, CurrentBlueLower);
+						}
         }
 
         private void JoinRand(BasePlayer player)
